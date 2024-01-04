@@ -1,7 +1,7 @@
 <?PHP
 ###############################################################
 #                                                             #
-# Community Applications copyright 2015-2023, Andrew Zawadzki #
+# Community Applications copyright 2015-2024, Andrew Zawadzki #
 #                   Licenced under GPLv2                      #
 #                                                             #
 ###############################################################
@@ -84,6 +84,7 @@ function my_display_apps($file,$pageNumber=1,$selectedApps=false,$startup=false)
 
   # Create entries for skins.
   foreach ($displayedTemplates as $template) {
+    $template = addMissingVars($template);
     if ( ! $template['RepositoryTemplate'] ) {
       if ( ! $template['Blacklist'] ) {
         if ( isset($extraBlacklist[$template['Repository']]) ) {
@@ -121,7 +122,26 @@ function my_display_apps($file,$pageNumber=1,$selectedApps=false,$startup=false)
     } else {
       $actionsContext = [];
       $selected = false;
-      $installComment = $template['CAComment'];
+      
+      if ( $template['ModeratorComment'] ) {
+        preg_match_all("/\/\/(.*?)&#92;/m",$template['ModeratorComment'],$searchMatches);
+        if ( count($searchMatches[1]) ) {
+          foreach ($searchMatches[1] as $searchResult) {
+            $template['ModeratorComment'] = str_replace("//$searchResult&#92;","<a style=cursor:pointer; onclick=doSidebarSearch(&quot;$searchResult&quot;);>$searchResult</a>",$template['ModeratorComment']);
+          }
+        }     
+      }
+      if ( $template['CAComment'] ) {
+        preg_match_all("/\/\/(.*?)&#92;/m",$template['CAComment'],$searchMatches);
+        if ( count($searchMatches[1]) ) {
+          foreach ($searchMatches[1] as $searchResult) {
+            $template['CAComment'] = str_replace("//$searchResult&#92;","<a style=cursor:pointer; onclick=doSidebarSearch(&quot;$searchResult&quot;);>$searchResult</a>",$template['CAComment']);
+          }
+        }        
+      }
+      $installComment = $template['ModeratorComment'] ? "<span class=ca_bold>{$template['ModeratorComment']}</span>" : $template['CAComment'];
+
+      
 
       if ( $template['Requires'] ) {
         $template['Requires'] = markdown(strip_tags(str_replace(["\r","\n","&#xD;","'"],["","<br>","","&#39;"],trim($template['Requires'])),"<br>"));
@@ -528,7 +548,7 @@ function getPopupDescriptionSkin($appNumber) {
     }
     $template = $file[$index];
   }
-
+  $template = addMissingVars($template);
   if ( ! $template['Blacklist'] ) {
     if ( isset($extraBlacklist[$template['Repository']]) ) {
       $template['Blacklist'] = true;
@@ -626,6 +646,22 @@ function getPopupDescriptionSkin($appNumber) {
     $template['display_icon'] = "<img class='popupIcon screenshot' href='{$template['Icon']}' src='{$template['Icon']}' alt='Application Icon'>";
   }
   
+  if ( $template['ModeratorComment'] ) {
+    preg_match_all("/\/\/(.*?)&#92;/m",$template['ModeratorComment'],$searchMatches);
+    if ( count($searchMatches[1]) ) {
+      foreach ($searchMatches[1] as $searchResult) {
+        $template['ModeratorComment'] = str_replace("//$searchResult&#92;","<a style=cursor:pointer; onclick=doSidebarSearch(&quot;$searchResult&quot;);>$searchResult</a>",$template['ModeratorComment']);
+      }
+    }     
+  }
+  if ( $template['CAComment'] ) {
+    preg_match_all("/\/\/(.*?)&#92;/m",$template['CAComment'],$searchMatches);
+    if ( count($searchMatches[1]) ) {
+      foreach ($searchMatches[1] as $searchResult) {
+        $template['CAComment'] = str_replace("//$searchResult&#92;","<a style=cursor:pointer; onclick=doSidebarSearch(&quot;$searchResult&quot;);>$searchResult</a>",$template['CAComment']);
+      }
+    }        
+  }
   if ( $template['Requires'] ) {
     $template['Requires'] = Markdown(strip_tags(str_replace(["\r","\n","&#xD;"],["","<br>",""],trim($template['Requires'])),"<br>"));
     preg_match_all("/\/\/(.*?)&#92;/m",$template['Requires'],$searchMatches);
@@ -840,10 +876,12 @@ function getPopupDescriptionSkin($appNumber) {
 
   if ( $pinnedApps["{$template['Repository']}&{$template['SortName']}"] ?? false ) {
     $template['pinned'] = tr("Unpin App");
+    $template['pinnedAlt'] = tr("Pin App");
     $template['pinnedTitle'] = tr("Click to unpin this application");
     $template['pinnedClass'] = "pinned";
   } else {
     $template['pinned'] = tr("Pin App");
+    $template['pinnedAlt'] = tr("Unpin App");
     $template['pinnedTitle'] = tr("Click to pin this application");
     $template['pinnedClass'] = "unpinned";
   }
@@ -865,8 +903,8 @@ function getRepoDescriptionSkin($repository) {
   $templates = &$GLOBALS['templates'];
 
   $repo = $repositories[$repository];
-  $iconPrefix = $repo['icon'] ? "<a class='screenshot mfp-image' href='{$repo['icon']}'>" : "";
-  $iconPostfix = $repo['icon'] ? "</a>" : "";
+  $iconPrefix = ($repo['icon']??false) ? "<a class='screenshot mfp-image' href='{$repo['icon']}'>" : "";
+  $iconPostfix = ($repo['icon']??false) ? "</a>" : "";
 
   $repo['icon'] = $repo['icon'] ?? "/plugins/dynamix.docker.manager/images/question.png";
   $repo['bio'] = isset($repo['bio']) ? markdown($repo['bio']) : "<br><center>".tr("No description present");
@@ -881,17 +919,17 @@ function getRepoDescriptionSkin($repository) {
     if ( $template['Deprecated'] && $caSettings['hideDeprecated'] !== "false" ) continue;
     if ( ! $template['Compatible'] && $caSettings['hideIncompatible'] !== "false" ) continue;
 
-    if ( $template['Registry'] ) {
+    if ( $template['Registry'] ?? null ) {
       $totalDocker++;
-      if ( $template['downloads'] ) {
+      if ( $template['downloads']??null ) {
         $totalDownloads = $totalDownloads + $template['downloads'];
         $downloadDockerCount++;
       }
     }
-    if ( $template['PluginURL'] ) {
+    if ( $template['PluginURL'] ?? null ) {
       $totalPlugins++;
     }
-    if ( $template['Language'] ) {
+    if ( $template['Language'] ?? null ) {
       $totalLanguage++;
     }
 
@@ -975,7 +1013,7 @@ function getRepoDescriptionSkin($repository) {
     <div class='repoStats'>Statistics</div>
       <table class='repoTable'>
   ";
-  if ( $repo['FirstSeen'] > 1 )
+  if ( ($repo['FirstSeen']?? 0) > 1 )
     $t .= "<tr><td class='repoLeft'>".tr("Added to CA")."</td><td class='repoRight'>".date("F j, Y",$repo['FirstSeen'])."</td></tr>";
 
   $t .= "
@@ -1307,10 +1345,10 @@ function displayCard($template) {
   $ovr = str_replace("\n","<br>",$ovr);
   $Overview = strip_tags(str_replace("<br>"," ",$ovr));
 
-  if ( ($UninstallOnly ?? false) && $Featured && is_file("/var/log/plugins/".basename($PluginURL)) )
+  if ( ($UninstallOnly ?? false) && ($Featured??null) && is_file("/var/log/plugins/".basename($PluginURL)) )
     $Overview = "<span class='featuredIncompatible'>".sprintf(tr("%s is incompatible with your OS version.  Either uninstall %s or update the OS"),$Name,$Name)."</span>&nbsp;&nbsp;$Overview";
   else
-    if ( (! $Compatible || ($UninstallOnly ?? false) ) && $Featured )
+    if ( (! ($Compatible??null) || ($UninstallOnly ?? false) ) && ($Featured??null) )
       $Overview = "<span class='featuredIncompatible'>".sprintf(tr("%s is incompatible with your OS version.  Please update the OS to proceed"),$Name)."</span>&nbsp;&nbsp;$Overview";
 
 
@@ -1445,7 +1483,7 @@ function displayPopup($template) {
       $card.= "<div class='supportPopup' id='supportPopup'><span class='ca_fa-support'> ".tr("Support")."</div>";
 
     $NoPin = $NoPin ?? false;
-    $card .= ($LanguagePack != "en_US" && ! $Blacklist && ! $NoPin) ? "<div class='pinPopup $pinnedClass' title='$pinnedTitle' data-repository='$Repository' data-name='$SortName'><span>$pinned</span></div>" : "";
+    $card .= ($LanguagePack != "en_US" && ! $Blacklist && ! $NoPin) ? "<div class='pinPopup $pinnedClass' title='$pinnedTitle' data-pinnedalt='$pinnedAlt' data-repository='$Repository' data-name='$SortName'><span>$pinned</span></div>" : "";
     if ( ! $caSettings['dockerRunning'] && (! $Plugin && ! $Language) ) {
       $card .= "<div class='ca_red'>".tr("Docker Service Not Enabled - Only Plugins Available To Be Installed Or Managed")."</div>";
     }

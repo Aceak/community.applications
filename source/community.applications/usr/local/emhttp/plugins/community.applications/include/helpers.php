@@ -1,7 +1,7 @@
 <?PHP
 ###############################################################
 #                                                             #
-# Community Applications copyright 2015-2023, Andrew Zawadzki #
+# Community Applications copyright 2015-2024, Andrew Zawadzki #
 #                   Licenced under GPLv2                      #
 #                                                             #
 ###############################################################
@@ -159,6 +159,8 @@ function last_str_replace($haystack, $needle, $replace) {
 function mySort($a, $b) {
   global $sortOrder;
 
+  $a['trendDelta'] = $a['trendDelta'] ?? null;
+  $b['trendDelta'] = $b['trendDelta'] ?? null;
   if ( $sortOrder['sortBy'] == "Name" )
     $sortOrder['sortBy'] = "SortName";
   if ( $sortOrder['sortBy'] != "downloads" && $sortOrder['sortBy'] != "trendDelta") {
@@ -205,7 +207,7 @@ function searchArray($array,$key,$value,$startingIndex=0) {
   $result = false;
   if (is_array($array) && count($array) ) {
     for ($i = $startingIndex; $i <= max(array_keys($array)); $i++) {
-      if ( $array[$i][$key] == $value ) {
+      if ( ($array[$i][$key] ?? null) == $value ) {
         $result = $i;
         break;
       }
@@ -219,9 +221,9 @@ function searchArray($array,$key,$value,$startingIndex=0) {
 function fixTemplates($template) {
   global $statistics, $caSettings;
 
-  if ( ! $template['MinVer'] ) $template['MinVer'] = $template['Plugin'] ? "6.1" : "6.0";
-  if ( ! $template['Date'] ) $template['Date'] = (is_numeric($template['DateInstalled'])) ? $template['DateInstalled'] : 0;
-  $template['Date'] = max($template['Date'],$template['FirstSeen']);
+  if ( ! $template['MinVer'] ) $template['MinVer'] = ($template['Plugin']??false) ? "6.1" : "6.0";
+  if ( ! ($template['Date']??null) ) $template['Date'] = (is_numeric($template['DateInstalled']??null)) ? $template['DateInstalled'] : 0;
+  $template['Date'] = max($template['Date']??null,$template['FirstSeen']??null);
   if ($template['Date'] == 1) $template['Date'] = null;
   if ( ($template['Date'] == $template['FirstSeen']) && ( $template['FirstSeen'] >= 1538357652 )) {# 1538357652 is when the new appfeed first started
     $template['BrandNewApp'] = true;
@@ -229,14 +231,14 @@ function fixTemplates($template) {
   }
 
   # fix where template author includes <Blacklist> or <Deprecated> entries in template (CA used booleans, but appfeed winds up saying "FALSE" which equates to be true
-  $template['Deprecated'] = filter_var($template['Deprecated'],FILTER_VALIDATE_BOOLEAN);
-  $template['Blacklist'] = filter_var($template['Blacklist'],FILTER_VALIDATE_BOOLEAN);
+  $template['Deprecated'] = filter_var($template['Deprecated']??null,FILTER_VALIDATE_BOOLEAN);
+  $template['Blacklist'] = filter_var($template['Blacklist']??null,FILTER_VALIDATE_BOOLEAN);
 
-  if ( $template['DeprecatedMaxVer'] && version_compare($caSettings['unRaidVersion'],$template['DeprecatedMaxVer'],">") )
+  if ( ($template['DeprecatedMaxVer']??null) && version_compare($caSettings['unRaidVersion'],$template['DeprecatedMaxVer'],">") )
     $template['Deprecated'] = true;
 
   if ( version_compare($caSettings['unRaidVersion'],"6.10.0-beta4",">") ) {
-    if ( $template['Config'] ) {
+    if ( $template['Config']??null ) {
       if ( $template['Config']['@attributes'] ?? false ) {
         if (preg_match("/^(Container Path:|Container Port:|Container Label:|Container Variable:|Container Device:)/",$template['Config']['@attributes']['Description']) ) {
           $template['Config']['@attributes']['Description'] = "";
@@ -309,7 +311,7 @@ function fixAttributes(&$template,$attribute) {
 function versionCheck($template) {
   global $caSettings;
 
-  if ( $template['IncompatibleVersion'] ) {
+  if ( $template['IncompatibleVersion']??null ) {
     if ( ! is_array($template['IncompatibleVersion']) ) {
       $incompatible[] = $template['IncompatibleVersion'];
     } else {
@@ -320,8 +322,8 @@ function versionCheck($template) {
     }
   }
 
-  if ( $template['MinVer'] && ( version_compare($template['MinVer'],$caSettings['unRaidVersion']) > 0 ) ) return false;
-  if ( $template['MaxVer'] && ( version_compare($template['MaxVer'],$caSettings['unRaidVersion']) < 0 ) ) return false;
+  if ( ($template['MinVer']??null) && ( version_compare($template['MinVer'],$caSettings['unRaidVersion']) > 0 ) ) return false;
+  if ( ($template['MaxVer']??null) && ( version_compare($template['MaxVer'],$caSettings['unRaidVersion']) < 0 ) ) return false;
   return true;
 }
 ###############################################
@@ -380,16 +382,16 @@ function moderateTemplates() {
   if ( ! $templates ) return;
   foreach ($templates as $template) {
     $template['Compatible'] = versionCheck($template);
-    if ( $template['MaxVer'] && version_compare($template['MaxVer'],$caSettings['unRaidVersion']) < 0 )
+    if ( ($template['MaxVer']??null) && version_compare($template['MaxVer'],$caSettings['unRaidVersion']) < 0 )
       $template['Featured'] = false;
     if ( $template['CAMinVer'] ?? false ) {
       $template['UninstallOnly'] = version_compare($template['CAMinVer'],$caSettings['unRaidVersion'],">=");
     }
 
-    if ( $template["DeprecatedMaxVer"] && version_compare($caSettings['unRaidVersion'],$template["DeprecatedMaxVer"],">") )
+    if ( ($template["DeprecatedMaxVer"]??null) && version_compare($caSettings['unRaidVersion'],$template["DeprecatedMaxVer"],">") )
       $template['Deprecated'] = true;
 
-    $template['ModeratorComment'] = $template['CaComment'] ?: $template['ModeratorComment'];
+    $template['ModeratorComment'] = $template['CaComment'] ?? ($template['ModeratorComment']??null);
     $o[] = $template;
   }
   writeJsonFile($caPaths['community-templates-info'],$o);
@@ -429,7 +431,7 @@ function pluginDupe() {
   $pluginList = [];
   $dupeList = [];
   foreach ($GLOBALS['templates'] as $template) {
-    if ( $template['Plugin'] ) {
+    if ( ($template['Plugin']??null) ) {
       if ( ! isset($pluginList[basename($template['Repository'])]) )
         $pluginList[basename($template['Repository'])] = 0;
       $pluginList[basename($template['Repository'])]++;
@@ -752,7 +754,6 @@ function ca_explode($split,$text,$count=2) {
 function plain($ip) {
   return str_replace(['[',']'],'',$ip);
 }
-
 ###########################################
 # Checks server date against CA's version #
 ###########################################
@@ -1353,7 +1354,7 @@ class TypeConverter {
    * Decode a resource object for UTF-8.
    *
    * @access public
-   * @param mixed $data
+   * @param mixed $data 
    * @return array|string
    * @static
    */
